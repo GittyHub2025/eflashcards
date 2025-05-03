@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Flashcards</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+            20%, 40%, 60%, 80% { transform: translateX(8px); }
+        }
+        .shake { animation: shake 0.5s ease-in-out; }
+
+        @keyframes flash-red {
+            0%, 100% { background-color: white; border-color: #d1d5db; }
+            50% { background-color: #fee2e2; border-color: #ef4444; }
+        }
+        .flash-red { animation: flash-red 0.5s ease-in-out; }
+
+        /* Button base styles */
+        .choice-button, .action-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            border-radius: 0.5rem;
+            font-weight: 600;
+            /* Adjusted padding for side-by-side layout */
+            padding: 0.75rem 0.5rem; /* Reduced horizontal padding */
+            text-align: center; /* Ensure text is centered */
+        }
+        /* Button hover/active states */
+        .choice-button:hover, .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+        .choice-button:active, .action-button:active {
+            transform: translateY(0px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        /* Disabled button style */
+        .choice-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        /* Style for the flashcard when it's clickable */
+        .clickable-card {
+            cursor: pointer;
+        }
+
+        #progressBarFill { transition: width 0.3s ease-out; }
+        #confettiCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 0.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .modal-close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-close-button:hover, .modal-close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+
+        /* Custom styles for the rocket progress bar */
+        .race-track-container {
+            position: relative;
+            width: 100%;
+            height: 30px; /* Height of the track area */
+            margin-top: 20px; /* Space above the track */
+            margin-bottom: 20px; /* Space below the track */
+        }
+
+        .race-track {
+            position: absolute;
+            bottom: 0; /* Align track to the bottom of the container */
+            left: 0;
+            width: calc(100% - 30px); /* Make space for the flag at the end */
+            height: 10px; /* Height of the track line */
+            background-color: #d1d5db; /* Slate-300 */
+            border-radius: 5px;
+        }
+
+        /* Style for the rocket emoji */
+        .rocket {
+            position: absolute;
+            bottom: -8px; /* Adjust to position rocket on the track */
+            left: 0; /* Starting position */
+            font-size: 36px; /* Size of the emoji */
+            /* Removed transition here for manual animation */
+            transform: translateX(-50%) ; /* Center the emoji and rotate for rocket */
+            z-index: 10; /* Ensure rocket is above the track */
+        }
+
+        .checkered-flag {
+            position: absolute;
+            bottom: -8px; /* Align flag with the track */
+            right: 0;
+            font-size: 24px; /* Size of the emoji */
+            transform: translateX(50%); /* Center the flag emoji on the position */
+        }
+
+         .race-percentage {
+            position: absolute;
+            bottom: 15px; /* Position above the rocket */
+            left: 0; /* Starting position */
+            transform: translateX(-50%); /* Center text above the rocket */
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+            color: #475569; /* slate-600 */
+             /* Removed transition here for manual animation */
+         }
+
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200 min-h-screen flex items-center justify-center p-4">
+
+    <div id="appContainer" class="w-full max-w-md mx-auto">
+
+        <div id="setSelectionScreen" class="bg-white p-6 md:p-8 rounded-xl shadow-lg text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-indigo-800 mb-6">Multiplication Master</h1>
+            <p class="text-slate-600 mb-8">Choose a set to start your practice:</p>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="selectSet(1)" class="action-button bg-indigo-500 hover:bg-indigo-600 text-white w-full py-3 px-6">Set 1</button>
+                <button onclick="selectSet(2)" class="action-button bg-sky-500 hover:bg-sky-600 text-white w-full py-3 px-6">Set 2</button>
+                <button onclick="selectSet(3)" class="action-button bg-emerald-500 hover:bg-emerald-600 text-white w-full py-3 px-6">Set 3</button>
+                <button onclick="selectSet(4)" class="action-button bg-amber-500 hover:bg-amber-600 text-white w-full py-3 px-6">Set 4</button>
+                <button onclick="selectSet(5)" class="action-button bg-rose-500 hover:bg-rose-600 text-white w-full py-3 px-6">Set 5</button>
+                 <!-- Button to open webhook settings will be added dynamically -->
+            </div>
+        </div>
+
+        <div id="flashcardScreen" class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-slate-600">Progress</span>
+                    <span id="progressText" class="text-sm font-medium text-indigo-700">0 / 20</span> </div>
+                <div class="w-full bg-slate-200 rounded-full h-2.5">
+                    <div id="progressBarFill" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="flashcard" class="bg-white border border-slate-300 rounded-lg p-6 mb-6 text-center min-h-[150px] flex flex-col items-center justify-center transition-all duration-200">
+                 <div id="flashcardContent">
+                     <p id="questionText" class="text-3xl md:text-4xl font-bold text-slate-800"></p>
+                     <p id="feedbackText" class="mt-2 text-lg font-semibold"></p>
+                     <p id="continueText" class="mt-4 text-sm text-slate-500 hidden">Tap card to continue...</p>
+                 </div>
+            </div>
+
+            <div id="answerChoices" class="grid grid-cols-3 gap-2 md:gap-4">
+                <button id="choice1" onclick="checkAnswer(this)" class="choice-button bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg md:text-xl"></button>
+                <button id="choice2" onclick="checkAnswer(this)" class="choice-button bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg md:text-xl"></button>
+                <button id="choice3" onclick="checkAnswer(this)" class="choice-button bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg md:text-xl"></button>
+            </div>
+             <button onclick="showSetSelection()" class="action-button mt-6 bg-slate-500 hover:bg-slate-600 text-white w-full text-sm py-3 px-6">Back to Set Selection</button>
+        </div>
+
+        <div id="resultsScreen" class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg text-center">
+            <h2 id="resultsHeading" class="text-2xl md:text-3xl font-bold text-indigo-800 mb-4"></h2>
+
+            <div class="bg-emerald-500 text-white p-4 rounded-lg mb-6">
+                <p class="text-lg md:text-xl font-semibold mb-1">Your Score:</p>
+                <p id="scoreDisplay" class="text-4xl md:text-5xl font-bold italic"></p>
+            </div>
+
+            <div class="race-track-container">
+                <div class="race-track"></div>
+                <span id="rocketEl" class="rocket">🚀</span> <span id="checkeredFlag" class="checkered-flag">🏁</span> <span id="racePercentageText" class="race-percentage">0%</span>
+            </div>
+            <p class="text-lg text-slate-700 mb-2">Percentage: <span id="percentage" class="font-semibold"></span></p>
+            <p class="text-lg text-slate-700 mb-6">Time: <span id="timeTaken" class="font-semibold"></span></p>
+
+            <p id="encouragementText" class="text-lg text-indigo-700 font-semibold mb-6"></p>
+            <div id="incorrectListContainer" class="mb-6 text-left">
+                <h3 class="text-xl font-semibold text-red-600 mb-3">Review Incorrect Answers:</h3>
+                <ul id="incorrectList" class="list-disc list-inside space-y-1 text-slate-600"></ul>
+                 <p id="noIncorrectText" class="text-emerald-600 font-semibold hidden">Great job, no incorrect answers!</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button id="redoIncorrectButton" onclick="redoIncorrect()" class="action-button bg-orange-500 hover:bg-orange-600 text-white w-full py-3 px-6">Redo Incorrect</button>
+                <button onclick="showSetSelection()" class="action-button bg-indigo-500 hover:bg-indigo-600 text-white w-full py-3 px-6">Choose New Set</button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="confettiCanvas"></canvas>
+
+    <div id="webhookModal" class="modal">
+      <div class="modal-content">
+        <span class="modal-close-button" onclick="closeModal()">×</span>
+        <h2 class="text-xl font-semibold mb-4 text-indigo-800">Webhook Setup</h2>
+        <p class="text-slate-600 mb-4">Enter your Make.com (or other service) webhook URL below to send results data automatically.</p>
+        <input type="url" id="webhookUrlInput" placeholder="https://hook.make.com/xxxxxxxxxxxx" class="w-full p-2 border border-slate-300 rounded mb-4 focus:ring-indigo-500 focus:border-indigo-500">
+         <p class="text-xs text-slate-500 mb-4">You can change this later if needed.</p>
+        <button onclick="saveWebhookUrl()" class="action-button bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4">Save URL</button>
+      </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const MAX_FACTOR = 12;
+        const QUESTIONS_PER_SET = 20;
+        const TOTAL_SETS = 5;
+        const AUTO_PROCEED_DELAY = 500; // 0.5 seconds
+        const DEFAULT_WEBHOOK_URL = 'https://hook.us2.make.com/dsnznsn7akpd4ccnl8h1w5j1pmullftg';
+        let WEBHOOK_URL = localStorage.getItem('webhookUrl') || DEFAULT_WEBHOOK_URL;
+
+        // --- State Variables ---
+        let allQuestions = [];
+        let questionSets = [];
+        let currentSet = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let incorrectAnswers = [];
+        let startTime;
+        let endTime;
+        let isRedoing = false;
+        let proceedTimeoutId = null;
+        let isWaitingToProceed = false;
+        let selectedSetNumber = 0;
+
+
+        // --- Sound Synthesis (Tone.js) ---
+        const correctSound = new Tone.Synth({
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.2 },
+        }).toDestination();
+        const incorrectSound = new Tone.Synth({
+            oscillator: { type: 'square' },
+            envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 }
+        }).toDestination();
+
+        // --- Confetti ---
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const myConfetti = confetti.create(confettiCanvas, { resize: true, useWorker: true });
+
+        // --- DOM Elements ---
+        const setSelectionScreen = document.getElementById('setSelectionScreen');
+        const flashcardScreen = document.getElementById('flashcardScreen');
+        const resultsScreen = document.getElementById('resultsScreen');
+        const progressText = document.getElementById('progressText');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const flashcard = document.getElementById('flashcard');
+        const questionText = document.getElementById('questionText');
+        const feedbackText = document.getElementById('feedbackText');
+        const continueText = document.getElementById('continueText');
+        const answerChoicesContainer = document.getElementById('answerChoices');
+        const choiceButtons = [ document.getElementById('choice1'), document.getElementById('choice2'), document.getElementById('choice3') ];
+        const scoreDisplayEl = document.getElementById('scoreDisplay');
+        const percentageEl = document.getElementById('percentage');
+        const timeTakenEl = document.getElementById('timeTaken');
+        const incorrectListContainer = document.getElementById('incorrectListContainer');
+        const incorrectList = document.getElementById('incorrectList');
+        const noIncorrectText = document.getElementById('noIncorrectText');
+        const redoIncorrectButton = document.getElementById('redoIncorrectButton');
+        const webhookModal = document.getElementById('webhookModal');
+        const webhookUrlInput = document.getElementById('webhookUrlInput');
+        const encouragementTextEl = document.getElementById('encouragementText');
+        const resultsHeadingEl = document.getElementById('resultsHeading');
+        const raceTrackContainer = document.querySelector('#resultsScreen .race-track-container');
+        const rocketEl = document.getElementById('rocketEl');
+        const racePercentageTextEl = document.getElementById('racePercentageText');
+
+
+        // --- Event Listener for Proceeding (Tap on Flashcard) ---
+        flashcard.addEventListener('click', () => {
+            if (isWaitingToProceed) {
+                console.log("Flashcard tapped, proceeding to next.");
+                proceedToNext();
+            }
+        });
+
+
+        // --- Functions ---
+
+        function generateAllQuestions() {
+            const questions = new Set();
+            for (let i = 2; i <= MAX_FACTOR; i++) {
+                for (let j = 2; j <= MAX_FACTOR; j++) {
+                    questions.add(JSON.stringify({ num1: i, num2: j, answer: i * j }));
+                }
+            }
+            console.log(`Generated ${questions.size} unique questions.`);
+            return Array.from(questions).map(q => JSON.parse(q));
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function createQuestionSets() {
+            allQuestions = generateAllQuestions();
+            shuffleArray(allQuestions);
+            questionSets = [];
+            for (let i = 0; i < TOTAL_SETS; i++) {
+                const start = i * QUESTIONS_PER_SET;
+                const end = start + QUESTIONS_PER_SET;
+                 if (start < allQuestions.length) {
+                     questionSets.push(allQuestions.slice(start, Math.min(end, allQuestions.length)));
+                 }
+            }
+             if (allQuestions.length < TOTAL_SETS * QUESTIONS_PER_SET) {
+                console.warn(`Warning: Not enough unique questions generated (${allQuestions.length}) for ${TOTAL_SETS} sets of ${QUESTIONS_PER_SET}.`);
+             }
+             console.log(`Created ${questionSets.length} sets.`);
+        }
+
+        function selectSet(setIndex) {
+            console.log(`Selecting set ${setIndex}.`);
+            Tone.start().then(() => {
+                console.log("Audio context started.");
+            }).catch(e => {
+                console.error("Error starting audio context:", e);
+            });
+
+            if (setIndex < 1 || setIndex > questionSets.length) {
+                console.error(`Invalid set index selected: ${setIndex}`);
+                return;
+            }
+            currentSet = questionSets[setIndex - 1];
+            selectedSetNumber = setIndex;
+
+            if (!currentSet || currentSet.length === 0) {
+                 alert("Error loading question set. Please refresh.");
+                 console.error("Selected set is empty or undefined.");
+                 return;
+            }
+            currentQuestionIndex = 0;
+            score = 0;
+            incorrectAnswers = [];
+            isRedoing = false;
+            resetCardState();
+
+            setSelectionScreen.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            flashcardScreen.classList.remove('hidden');
+            startTime = new Date();
+            console.log(`Starting set ${selectedSetNumber} with ${currentSet.length} questions.`);
+            displayQuestion();
+        }
+
+        function resetCardState() {
+            if (proceedTimeoutId) {
+                clearTimeout(proceedTimeoutId);
+                proceedTimeoutId = null;
+            }
+            isWaitingToProceed = false;
+            feedbackText.textContent = '';
+            feedbackText.className = 'mt-2 text-lg font-semibold';
+            flashcard.classList.remove('shake', 'flash-red', 'clickable-card');
+            flashcard.style.cursor = 'default';
+            continueText.classList.add('hidden');
+            console.log("Card state reset.");
+        }
+
+        function displayQuestion() {
+            console.log(`Displaying question ${currentQuestionIndex + 1} / ${currentSet.length}`);
+            resetCardState();
+
+            if (currentQuestionIndex >= currentSet.length) {
+                showResults();
+                return;
+            }
+
+            const questionData = currentSet[currentQuestionIndex];
+            questionText.textContent = `${questionData.num1} × ${questionData.num2} = ?`;
+            feedbackText.textContent = '';
+            feedbackText.className = 'mt-2 text-lg font-semibold';
+
+            const correctAnswer = questionData.answer;
+            const choices = generateChoices(correctAnswer, questionData.num1, questionData.num2);
+            choices.sort((a, b) => a - b);
+
+            choiceButtons.forEach((button, index) => {
+                button.textContent = choices[index];
+                button.disabled = false;
+                button.dataset.answer = choices[index];
+                button.className = 'choice-button bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg md:text-xl';
+            });
+
+            updateProgress();
+        }
+
+        function generateChoices(correctAnswer, num1, num2) {
+            const choices = new Set([correctAnswer]);
+            // Try to generate plausible incorrect answers based on common errors
+            const nearOffset1 = correctAnswer + (Math.random() < 0.5 ? 1 : -1);
+            if (nearOffset1 > 0 && nearOffset1 !== correctAnswer) choices.add(nearOffset1);
+            const nearOffset2 = correctAnswer + (Math.random() < 0.5 ? 2 : -2);
+             if (nearOffset2 > 0 && nearOffset2 !== correctAnswer && choices.size < 3) choices.add(nearOffset2);
+
+            // Add results of nearby operations
+            if (choices.size < 3) {
+                const wrongOp1 = (num1 + (Math.random() < 0.5 ? 1: -1)) * num2;
+                if (wrongOp1 > 0 && !choices.has(wrongOp1)) choices.add(wrongOp1);
+            }
+             if (choices.size < 3) {
+                const wrongOp2 = num1 * (num2 + (Math.random() < 0.5 ? 1: -1));
+                if (wrongOp2 > 0 && !choices.has(wrongOp2)) choices.add(wrongOp2);
+            }
+
+            // Fallback: generate random nearby numbers if still needed
+            while (choices.size < 3) {
+                const min = Math.max(1, correctAnswer - 10);
+                const max = correctAnswer + 10;
+                let incorrectAnswer = Math.floor(Math.random() * (max - min + 1)) + min;
+                if (incorrectAnswer > 0 && !choices.has(incorrectAnswer)) {
+                     choices.add(incorrectAnswer);
+                }
+            }
+            // If somehow we ended up with less than 3 (e.g., all calculations resulted in same number), add randoms
+             let fallbackCounter = 0;
+             while (choices.size < 3 && fallbackCounter < 10) {
+                let randomChoice = Math.max(1, Math.floor(Math.random() * correctAnswer * 1.5));
+                choices.add(randomChoice);
+                fallbackCounter++;
+             }
+
+            return Array.from(choices);
+        }
+
+
+        function updateProgress() {
+            const totalQuestions = currentSet.length;
+            const completedQuestions = currentQuestionIndex; // Use currentQuestionIndex before it's incremented in checkAnswer
+            const progressPercentage = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0;
+            progressText.textContent = `${completedQuestions} / ${totalQuestions}`;
+            progressBarFill.style.width = `${progressPercentage}%`;
+            console.log(`Progress updated: ${completedQuestions} / ${totalQuestions}`);
+        }
+
+
+        function checkAnswer(button) {
+            Tone.start().catch(e => console.warn("Audio context likely already started or failed:", e));
+
+            if (isWaitingToProceed) return; // Prevent multiple clicks
+
+            console.log(`Checking answer for question index ${currentQuestionIndex}...`);
+
+            const selectedAnswer = parseInt(button.dataset.answer);
+            const questionData = currentSet[currentQuestionIndex];
+            const correctAnswer = questionData.answer;
+
+            choiceButtons.forEach(btn => btn.disabled = true);
+
+            if (selectedAnswer === correctAnswer) {
+                if (!isRedoing) score++; // Only increment score if not redoing incorrects
+                feedbackText.textContent = 'Correct!';
+                feedbackText.className = 'mt-2 text-lg font-semibold text-emerald-600';
+                button.className = 'choice-button bg-emerald-500 text-white text-lg md:text-xl';
+                myConfetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+                correctSound.triggerAttackRelease("G5", "8n", Tone.now());
+                 console.log("Answer correct!");
+            } else {
+                console.log(`Answer incorrect. Correct: ${correctAnswer}, User: ${selectedAnswer}`);
+                questionText.textContent = '';
+                feedbackText.innerHTML = `${questionData.num1} × ${questionData.num2} = <span class="font-bold text-2xl md:text-3xl">${correctAnswer}</span>`;
+                feedbackText.className = 'mt-2 text-xl md:text-2xl font-semibold text-red-600';
+                button.className = 'choice-button bg-red-500 text-white text-lg md:text-xl';
+                flashcard.classList.add('shake', 'flash-red');
+                choiceButtons.forEach(btn => {
+                     if (parseInt(btn.dataset.answer) === correctAnswer) {
+                         btn.className = 'choice-button bg-emerald-100 border border-emerald-400 text-slate-600 text-lg md:text-xl opacity-80';
+                     }
+                });
+                 incorrectSound.triggerAttackRelease("C3", "8n");
+                 incorrectAnswers.push({ // Always track incorrect answers, even during redo
+                    question: `${questionData.num1} × ${questionData.num2}`,
+                    correctAnswer: correctAnswer,
+                    userAnswer: selectedAnswer
+                 });
+            }
+
+            // Wait before proceeding
+            isWaitingToProceed = true;
+            flashcard.classList.add('clickable-card');
+            flashcard.style.cursor = 'pointer';
+            continueText.classList.remove('hidden');
+            console.log("Waiting to proceed...");
+
+            // Set timeout for auto-proceed
+            if (proceedTimeoutId) clearTimeout(proceedTimeoutId);
+            proceedTimeoutId = setTimeout(proceedToNext, AUTO_PROCEED_DELAY);
+            console.log(`Auto-proceed timeout set for ${AUTO_PROCEED_DELAY}ms.`);
+
+            // Increment index AFTER processing the answer, but before displaying next
+            currentQuestionIndex++;
+        }
+
+        function proceedToNext() {
+             console.log("Proceeding to next question/results.");
+             if (proceedTimeoutId) {
+                 clearTimeout(proceedTimeoutId);
+                 proceedTimeoutId = null;
+             }
+
+             isWaitingToProceed = false;
+             flashcard.classList.remove('clickable-card');
+             flashcard.style.cursor = 'default';
+             continueText.classList.add('hidden');
+             flashcard.classList.remove('shake', 'flash-red');
+
+             displayQuestion(); // Will either show next question or trigger showResults
+        }
+
+
+        function showResults() {
+            console.log("Showing results screen.");
+            endTime = new Date();
+            const timeDiff = Math.round((endTime - startTime) / 1000);
+            const totalQuestions = currentSet.length;
+            // Calculate score based on the mode (initial run vs redo)
+            const currentScore = isRedoing ? (totalQuestions - incorrectAnswers.length) : score;
+            const percentage = totalQuestions > 0 ? Math.round((currentScore / totalQuestions) * 100) : 0;
+
+            resultsHeadingEl.textContent = isRedoing ? 'Review Complete!' : `Set ${selectedSetNumber} Complete!`;
+            scoreDisplayEl.textContent = `${currentScore} / ${totalQuestions}`;
+            percentageEl.textContent = `${percentage}%`;
+            timeTakenEl.textContent = `${timeDiff} seconds`;
+
+            if (percentage === 100) {
+                encouragementTextEl.textContent = isRedoing ? "Perfect review!" : "Fantastic job! You mastered this set!";
+                encouragementTextEl.className = 'text-lg text-emerald-700 font-semibold mb-6';
+            } else if (percentage >= 70) {
+                 encouragementTextEl.textContent = isRedoing ? "Good review! Keep practicing!" : "Great effort! Keep practicing to improve!";
+                 encouragementTextEl.className = 'text-lg text-sky-700 font-semibold mb-6';
+            } else {
+                 encouragementTextEl.textContent = isRedoing ? "Keep reviewing these facts!" : "Keep going! Practice makes perfect!";
+                 encouragementTextEl.className = 'text-lg text-orange-700 font-semibold mb-6';
+            }
+
+            flashcardScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+
+            // --- Rocket Animation ---
+            const trackWidth = raceTrackContainer.offsetWidth;
+            const effectiveTrackWidth = trackWidth - 24; // Adjust based on flag emoji size
+            let currentAnimatedPercentage = 0;
+            const animationDuration = 1500;
+            const animationStartTime = performance.now();
+
+            function animateRocket(currentTime) {
+                const elapsedTime = currentTime - animationStartTime;
+                const progress = Math.min(elapsedTime / animationDuration, 1);
+                const animatedPercentage = Math.round(progress * percentage);
+                const rocketPosition = Math.max(0, (animatedPercentage / 100) * effectiveTrackWidth);
+
+                rocketEl.style.left = `${rocketPosition}px`;
+                racePercentageTextEl.style.left = `${rocketPosition}px`;
+                racePercentageTextEl.textContent = `${animatedPercentage}%`; // Add % sign
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateRocket);
+                } else {
+                     const finalRocketPosition = Math.max(0, (percentage / 100) * effectiveTrackWidth);
+                     rocketEl.style.left = `${finalRocketPosition}px`;
+                     racePercentageTextEl.style.left = `${finalRocketPosition}px`;
+                     racePercentageTextEl.textContent = `${percentage}%`; // Ensure final % is shown
+                }
+            }
+             rocketEl.style.left = '0px';
+             racePercentageTextEl.style.left = '0px';
+             racePercentageTextEl.textContent = '0%';
+            requestAnimationFrame(animateRocket);
+             console.log("Rocket animation started.");
+
+            // --- Incorrect Answers List ---
+            incorrectList.innerHTML = '';
+            const finalIncorrect = incorrectAnswers; // Use the list from the current round (initial or redo)
+            if (finalIncorrect.length > 0) {
+                incorrectListContainer.classList.remove('hidden');
+                noIncorrectText.classList.add('hidden');
+                finalIncorrect.forEach(item => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `${item.question} = ${item.correctAnswer} (You answered: ${item.userAnswer})`;
+                    incorrectList.appendChild(listItem);
+                });
+                 // Only show the "Redo Incorrect" button if it was the initial run AND there were errors
+                 if (!isRedoing) {
+                    redoIncorrectButton.classList.remove('hidden');
+                 } else {
+                     redoIncorrectButton.classList.add('hidden'); // Hide if we just finished a redo
+                 }
+
+            } else {
+                incorrectListContainer.classList.add('hidden');
+                noIncorrectText.classList.remove('hidden');
+                redoIncorrectButton.classList.add('hidden');
+            }
+
+             // --- Prepare and Send Webhook Data ---
+             // Get additional device/user info
+             const userOS = navigator.platform || 'N/A';
+             const localTime = new Date().toString();
+             let userTimezone = 'N/A';
+             try {
+                 userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+             } catch (e) {
+                 console.warn("Could not determine timezone:", e);
+             }
+
+            sendResultsToWebhook({
+                set: selectedSetNumber,
+                score: currentScore, // Send the score relevant to the current round
+                totalQuestions: totalQuestions,
+                percentage: percentage,
+                timeTaken: timeDiff,
+                incorrectAnswers: finalIncorrect, // Send the incorrect answers from this round
+                isRedoing: isRedoing,
+                // --- Added Fields ---
+                os: userOS,
+                deviceTime: localTime,
+                timezone: userTimezone
+            });
+
+            // If we just finished a redo, reset the incorrectAnswers list for the next *initial* run
+            if (isRedoing) {
+                incorrectAnswers = []; // Clear list after redoing
+                isRedoing = false; // Reset the redo flag
+            }
+        }
+
+        function redoIncorrect() {
+            console.log("Redoing incorrect answers.");
+            const questionsToRedo = [...incorrectAnswers]; // Use the incorrect answers from the *last completed initial run*
+
+            if (questionsToRedo.length === 0) {
+                alert("No incorrect answers to redo!");
+                return;
+            }
+
+            currentSet = questionsToRedo.map(item => {
+                const originalQuestion = allQuestions.find(q => `${q.num1} × ${q.num2}` === item.question);
+                 // Fallback if original question isn't found (shouldn't happen with current logic)
+                 if (!originalQuestion) {
+                    console.error("Could not find original question data for:", item.question);
+                    // Attempt to parse from the string if possible
+                    const parts = item.question.split(' × ');
+                    if (parts.length === 2) {
+                        return { num1: parseInt(parts[0]), num2: parseInt(parts[1]), answer: item.correctAnswer };
+                    }
+                    return null; // Skip this question if parsing fails
+                 }
+                 return {
+                    num1: originalQuestion.num1,
+                    num2: originalQuestion.num2,
+                    answer: item.correctAnswer
+                 };
+            }).filter(q => q !== null); // Filter out any potential nulls
+
+            if (currentSet.length === 0) {
+                alert("Error preparing questions for redo.");
+                return;
+            }
+
+            shuffleArray(currentSet);
+
+            currentQuestionIndex = 0;
+            // Don't reset score here - score for redo is calculated in showResults
+            incorrectAnswers = []; // Clear the list specifically for the *redo round*
+            isRedoing = true; // Set flag
+
+            resultsScreen.classList.add('hidden');
+            flashcardScreen.classList.remove('hidden');
+            startTime = new Date(); // Reset timer for the redo round
+            console.log(`Starting redo round with ${currentSet.length} questions.`);
+            displayQuestion();
+        }
+
+
+        function showSetSelection() {
+            console.log("Showing set selection screen.");
+            if (proceedTimeoutId) {
+                clearTimeout(proceedTimeoutId);
+                proceedTimeoutId = null;
+            }
+            isWaitingToProceed = false;
+            isRedoing = false; // Ensure redo flag is reset when going back to selection
+            incorrectAnswers = []; // Clear any lingering incorrect answers
+
+            flashcardScreen.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            setSelectionScreen.classList.remove('hidden');
+
+            progressText.textContent = `0 / ${QUESTIONS_PER_SET}`;
+            progressBarFill.style.width = '0%';
+             // Ensure webhook settings button is present (it might be removed if logic changes)
+             if (!document.getElementById('webhookSettingsButton')) {
+                 addWebhookSettingsButton();
+             }
+            console.log("Resetting progress display.");
+        }
+
+        function sendResultsToWebhook(resultsData) {
+            if (!WEBHOOK_URL || !navigator.onLine) {
+                console.log("Webhook URL not set or offline. Skipping sending results.");
+                if (!navigator.onLine) console.warn("Browser is offline.");
+                return;
+            }
+
+            console.log("Attempting to send results to webhook:", WEBHOOK_URL);
+            // Log the actual data being sent
+            console.log("Webhook Payload:", resultsData);
+
+
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                 // Use keepalive: true if you want to increase the chance of the request completing
+                 // even if the user navigates away immediately after results are shown.
+                 // keepalive: true,
+                body: JSON.stringify(resultsData),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Log more details on failure
+                     return response.text().then(text => {
+                         console.error(`Webhook response not OK: ${response.status} ${response.statusText}`, `Response body: ${text}`);
+                         throw new Error(`Webhook failed with status ${response.status}`);
+                     });
+                } else {
+                    console.log('Results successfully sent to webhook.');
+                    return response.json(); // Or response.text() if it doesn't return JSON
+                }
+            })
+            .then(data => {
+                // Optional: Log success response data if any
+                 // console.log("Webhook success response:", data);
+             })
+            .catch((error) => {
+                console.error('Error sending results to webhook:', error);
+                // Consider adding user feedback here if sending fails, e.g., a small message
+            });
+        }
+
+        function openWebhookModal() {
+            webhookUrlInput.value = WEBHOOK_URL;
+            webhookModal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            webhookModal.style.display = 'none';
+        }
+
+        function saveWebhookUrl() {
+            const url = webhookUrlInput.value.trim();
+            // Basic URL validation (optional but recommended)
+            try {
+                new URL(url); // Check if it's a valid URL structure
+                WEBHOOK_URL = url;
+                localStorage.setItem('webhookUrl', url);
+                console.log("Webhook URL saved:", WEBHOOK_URL);
+                closeModal();
+            } catch (_) {
+                // More specific check for Make/Integromat URLs
+                 if (url === '' || url === DEFAULT_WEBHOOK_URL) {
+                     // Allow clearing or resetting to default
+                     WEBHOOK_URL = DEFAULT_WEBHOOK_URL;
+                     localStorage.removeItem('webhookUrl');
+                     console.log("Webhook URL reset to default:", WEBHOOK_URL);
+                     closeModal();
+                 } else if (url.startsWith('https://hook.') && (url.includes('.make.com/') || url.includes('.integromat.com/'))) {
+                    // Assume valid Make/Integromat URL even if new URL() fails on some complex paths
+                    WEBHOOK_URL = url;
+                    localStorage.setItem('webhookUrl', url);
+                    console.log("Webhook URL saved (Make/Integromat format):", WEBHOOK_URL);
+                    closeModal();
+                 }
+                 else {
+                    alert("Invalid URL format. Please enter a valid webhook URL.");
+                 }
+            }
+        }
+
+        // Function to add the button dynamically
+        function addWebhookSettingsButton() {
+            const existingButton = document.getElementById('webhookSettingsButton');
+             if (!existingButton) { // Only add if it doesn't exist
+                const settingsButton = document.createElement('button');
+                settingsButton.textContent = 'Webhook Settings';
+                settingsButton.id = 'webhookSettingsButton'; // Add an ID for easier checking
+                settingsButton.className = 'action-button mt-6 bg-slate-400 hover:bg-slate-500 text-white w-full text-sm py-3 px-6';
+                settingsButton.onclick = openWebhookModal;
+                // Append after the last set button
+                const setButtonsContainer = setSelectionScreen.querySelector('.grid');
+                if (setButtonsContainer) {
+                     // Insert after the grid container, not inside it, for better layout
+                     setButtonsContainer.parentNode.insertBefore(settingsButton, setButtonsContainer.nextSibling);
+                } else {
+                    setSelectionScreen.appendChild(settingsButton); // Fallback append
+                }
+
+                console.log("Webhook settings button added.");
+            }
+        }
+
+         document.addEventListener('DOMContentLoaded', () => {
+            // Add the settings button when the DOM is ready
+            addWebhookSettingsButton();
+            // Initial creation of question sets
+            createQuestionSets();
+         });
+
+    </script>
+</body>
+</html>
