@@ -38,7 +38,7 @@
         /* Button hover/active states */
         .choice-button:hover, .action-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+            box-shadow: 4px 8px rgba(0,0,0,0.12);
         }
         .choice-button:active, .action-button:active {
             transform: translateY(0px);
@@ -59,6 +59,7 @@
 
         #progressBarFill { transition: width 0.3s ease-out; }
         #confettiCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        /* Generic Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
         .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 0.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         .modal-close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -71,17 +72,32 @@
             height: 30px; /* Height of the track area */
             margin-top: 20px; /* Space above the track */
             margin-bottom: 20px; /* Space below the track */
+            z-index: 1; /* Base z-index for container */
         }
 
         .race-track {
             position: absolute;
-            bottom: 0; /* Align track to the bottom of the container */
+            bottom: 0;
             left: 0;
             width: calc(100% - 30px); /* Make space for the flag at the end */
-            height: 10px; /* Height of the track line */
-            background-color: #d1d5db; /* Slate-300 */
+            height: 10px;
+            background-color: #d1d5db; /* Slate-300 (Background color) */
             border-radius: 5px;
+            z-index: 2; /* Behind the fill */
         }
+
+        /* New style for the colored fill */
+        .race-track-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 10px;
+            background-color: #3b82f6; /* Blue-500 (Fill color) */
+            border-radius: 5px;
+            width: 0%; /* Starts at 0, expands with animation */
+            z-index: 3; /* Above the background track */
+        }
+
 
         /* Style for the rocket emoji */
         .rocket {
@@ -89,9 +105,8 @@
             bottom: -8px; /* Adjust to position rocket on the track */
             left: 0; /* Starting position */
             font-size: 36px; /* Size of the emoji */
-            /* Removed transition here for manual animation */
-            transform: translateX(-50%) ; /* Center the emoji and rotate for rocket */
-            z-index: 10; /* Ensure rocket is above the track */
+            transform: translateX(-50%) ; /* Center the emoji */
+            z-index: 10; /* Ensure rocket is above the track and fill */
         }
 
         .checkered-flag {
@@ -100,18 +115,11 @@
             right: 0;
             font-size: 24px; /* Size of the emoji */
             transform: translateX(50%); /* Center the flag emoji on the position */
+            z-index: 10; /* Ensure flag is above the track and fill */
         }
 
-         .race-percentage {
-            position: absolute;
-            bottom: 15px; /* Position above the rocket */
-            left: 0; /* Starting position */
-            transform: translateX(-50%); /* Center text above the rocket */
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 600; /* font-semibold */
-            color: #475569; /* slate-600 */
-             /* Removed transition here for manual animation */
-         }
+         /* Removed .race-percentage style block */
+
 
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -122,7 +130,18 @@
 
     <div id="appContainer" class="w-full max-w-md mx-auto">
 
-        <div id="setSelectionScreen" class="bg-white p-6 md:p-8 rounded-xl shadow-lg text-center">
+        <!-- Name Input Modal -->
+         <div id="nameModal" class="modal">
+             <div class="modal-content text-center">
+                 <h2 class="text-xl md:text-2xl font-semibold mb-4 text-indigo-800">Welcome, Multiplication Master!</h2>
+                 <p class="text-slate-600 mb-4">Please enter your name to get started.</p>
+                 <input type="text" id="userNameInput" placeholder="Your Name" class="w-full p-2 border border-slate-300 rounded mb-4 focus:ring-indigo-500 focus:border-indigo-500 text-center text-lg">
+                 <button onclick="saveUserName()" class="action-button bg-indigo-500 hover:bg-indigo-600 text-white w-full py-3 px-6 text-lg">Start!</button>
+             </div>
+         </div>
+
+        <!-- Set Selection Screen -->
+        <div id="setSelectionScreen" class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg text-center">
             <h1 class="text-2xl md:text-3xl font-bold text-indigo-800 mb-6">Multiplication Master</h1>
             <p class="text-slate-600 mb-8">Choose a set to start your practice:</p>
             <div class="grid grid-cols-1 gap-4">
@@ -135,6 +154,7 @@
             </div>
         </div>
 
+        <!-- Flashcard Screen -->
         <div id="flashcardScreen" class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg">
             <div class="mb-6">
                 <div class="flex justify-between items-center mb-2">
@@ -161,6 +181,7 @@
              <button onclick="showSetSelection()" class="action-button mt-6 bg-slate-500 hover:bg-slate-600 text-white w-full text-sm py-3 px-6">Back to Set Selection</button>
         </div>
 
+        <!-- Results Screen -->
         <div id="resultsScreen" class="hidden bg-white p-6 md:p-8 rounded-xl shadow-lg text-center">
             <h2 id="resultsHeading" class="text-2xl md:text-3xl font-bold text-indigo-800 mb-4"></h2>
 
@@ -170,11 +191,14 @@
             </div>
 
             <div class="race-track-container">
-                <div class="race-track"></div>
-                <span id="rocketEl" class="rocket">🚀</span> <span id="checkeredFlag" class="checkered-flag">🏁</span> <span id="racePercentageText" class="race-percentage">0%</span>
+                <div class="race-track"></div> <!-- Background track -->
+                <div id="raceTrackFill" class="race-track-fill"></div> <!-- Colored fill -->
+                <span id="rocketEl" class="rocket">🚀</span>
+                <span id="checkeredFlag" class="checkered-flag">🏁</span>
+                 <!-- Removed the racePercentageText span -->
             </div>
-            <p class="text-lg text-slate-700 mb-2">Percentage: <span id="percentage" class="font-semibold"></span></p>
-            <p class="text-lg text-slate-700 mb-6">Time: <span id="timeTaken" class="font-semibold"></span></p>
+            <p class="text-lg text-slate-700 mb-2">Percentage: <span id="percentage" class="font-semibold"></span>%</p>
+            <p class="text-lg text-slate-700 mb-6">Time: <span id="timeTaken" class="font-semibold"></span> seconds</p>
 
             <p id="encouragementText" class="text-lg text-indigo-700 font-semibold mb-6"></p>
             <div id="incorrectListContainer" class="mb-6 text-left">
@@ -188,20 +212,22 @@
                 <button onclick="showSetSelection()" class="action-button bg-indigo-500 hover:bg-indigo-600 text-white w-full py-3 px-6">Choose New Set</button>
             </div>
         </div>
+
+        <!-- Webhook Settings Modal -->
+        <div id="webhookModal" class="modal">
+          <div class="modal-content">
+            <span class="modal-close-button" onclick="closeWebhookModal()">×</span>
+            <h2 class="text-xl font-semibold mb-4 text-indigo-800">Webhook Setup</h2>
+            <p class="text-slate-600 mb-4">Enter your Make.com (or other service) webhook URL below to send results data automatically.</p>
+            <input type="url" id="webhookUrlInput" placeholder="https://hook.make.com/xxxxxxxxxxxx" class="w-full p-2 border border-slate-300 rounded mb-4 focus:ring-indigo-500 focus:border-indigo-500">
+             <p class="text-xs text-slate-500 mb-4">You can change this later if needed.</p>
+            <button onclick="saveWebhookUrl()" class="action-button bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4">Save URL</button>
+          </div>
+        </div>
+
     </div>
 
     <canvas id="confettiCanvas"></canvas>
-
-    <div id="webhookModal" class="modal">
-      <div class="modal-content">
-        <span class="modal-close-button" onclick="closeModal()">×</span>
-        <h2 class="text-xl font-semibold mb-4 text-indigo-800">Webhook Setup</h2>
-        <p class="text-slate-600 mb-4">Enter your Make.com (or other service) webhook URL below to send results data automatically.</p>
-        <input type="url" id="webhookUrlInput" placeholder="https://hook.make.com/xxxxxxxxxxxx" class="w-full p-2 border border-slate-300 rounded mb-4 focus:ring-indigo-500 focus:border-indigo-500">
-         <p class="text-xs text-slate-500 mb-4">You can change this later if needed.</p>
-        <button onclick="saveWebhookUrl()" class="action-button bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-4">Save URL</button>
-      </div>
-    </div>
 
     <script>
         // --- Configuration ---
@@ -210,7 +236,8 @@
         const TOTAL_SETS = 5;
         const AUTO_PROCEED_DELAY = 500; // 0.5 seconds
         const DEFAULT_WEBHOOK_URL = 'https://hook.us2.make.com/dsnznsn7akpd4ccnl8h1w5j1pmullftg';
-        let WEBHOOK_URL = localStorage.getItem('webhookUrl') || DEFAULT_WEBHOOK_URL;
+        const USER_NAME_STORAGE_KEY = 'multiplicationMasterUserName';
+        const WEBHOOK_URL_STORAGE_KEY = 'multiplicationMasterWebhookUrl';
 
         // --- State Variables ---
         let allQuestions = [];
@@ -225,7 +252,8 @@
         let proceedTimeoutId = null;
         let isWaitingToProceed = false;
         let selectedSetNumber = 0;
-
+        let WEBHOOK_URL = localStorage.getItem(WEBHOOK_URL_STORAGE_KEY) || DEFAULT_WEBHOOK_URL;
+        let userName = localStorage.getItem(USER_NAME_STORAGE_KEY) || '';
 
         // --- Sound Synthesis (Tone.js) ---
         const correctSound = new Tone.Synth({
@@ -242,6 +270,8 @@
         const myConfetti = confetti.create(confettiCanvas, { resize: true, useWorker: true });
 
         // --- DOM Elements ---
+        const nameModal = document.getElementById('nameModal');
+        const userNameInput = document.getElementById('userNameInput');
         const setSelectionScreen = document.getElementById('setSelectionScreen');
         const flashcardScreen = document.getElementById('flashcardScreen');
         const resultsScreen = document.getElementById('resultsScreen');
@@ -265,8 +295,9 @@
         const encouragementTextEl = document.getElementById('encouragementText');
         const resultsHeadingEl = document.getElementById('resultsHeading');
         const raceTrackContainer = document.querySelector('#resultsScreen .race-track-container');
+        const raceTrackFillEl = document.getElementById('raceTrackFill');
         const rocketEl = document.getElementById('rocketEl');
-        const racePercentageTextEl = document.getElementById('racePercentageText');
+        // Removed the racePercentageTextEl variable
 
 
         // --- Event Listener for Proceeding (Tap on Flashcard) ---
@@ -274,6 +305,14 @@
             if (isWaitingToProceed) {
                 console.log("Flashcard tapped, proceeding to next.");
                 proceedToNext();
+            }
+        });
+
+        // --- Event Listener for Enter Key on Name Input ---
+        userNameInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveUserName();
             }
         });
 
@@ -314,6 +353,22 @@
              }
              console.log(`Created ${questionSets.length} sets.`);
         }
+
+         function saveUserName() {
+            const name = userNameInput.value.trim();
+            if (name) {
+                userName = name;
+                localStorage.setItem(USER_NAME_STORAGE_KEY, userName);
+                console.log("User name saved:", userName);
+            } else {
+                 userName = 'Anonymous';
+                 localStorage.removeItem(USER_NAME_STORAGE_KEY);
+                 console.log("No name entered. Using default:", userName);
+            }
+            nameModal.style.display = 'none';
+            showSetSelection();
+        }
+
 
         function selectSet(setIndex) {
             console.log(`Selecting set ${setIndex}.`);
@@ -393,13 +448,11 @@
 
         function generateChoices(correctAnswer, num1, num2) {
             const choices = new Set([correctAnswer]);
-            // Try to generate plausible incorrect answers based on common errors
             const nearOffset1 = correctAnswer + (Math.random() < 0.5 ? 1 : -1);
             if (nearOffset1 > 0 && nearOffset1 !== correctAnswer) choices.add(nearOffset1);
             const nearOffset2 = correctAnswer + (Math.random() < 0.5 ? 2 : -2);
              if (nearOffset2 > 0 && nearOffset2 !== correctAnswer && choices.size < 3) choices.add(nearOffset2);
 
-            // Add results of nearby operations
             if (choices.size < 3) {
                 const wrongOp1 = (num1 + (Math.random() < 0.5 ? 1: -1)) * num2;
                 if (wrongOp1 > 0 && !choices.has(wrongOp1)) choices.add(wrongOp1);
@@ -409,7 +462,6 @@
                 if (wrongOp2 > 0 && !choices.has(wrongOp2)) choices.add(wrongOp2);
             }
 
-            // Fallback: generate random nearby numbers if still needed
             while (choices.size < 3) {
                 const min = Math.max(1, correctAnswer - 10);
                 const max = correctAnswer + 10;
@@ -418,7 +470,6 @@
                      choices.add(incorrectAnswer);
                 }
             }
-            // If somehow we ended up with less than 3 (e.g., all calculations resulted in same number), add randoms
              let fallbackCounter = 0;
              while (choices.size < 3 && fallbackCounter < 10) {
                 let randomChoice = Math.max(1, Math.floor(Math.random() * correctAnswer * 1.5));
@@ -432,7 +483,7 @@
 
         function updateProgress() {
             const totalQuestions = currentSet.length;
-            const completedQuestions = currentQuestionIndex; // Use currentQuestionIndex before it's incremented in checkAnswer
+            const completedQuestions = currentQuestionIndex;
             const progressPercentage = totalQuestions > 0 ? (completedQuestions / totalQuestions) * 100 : 0;
             progressText.textContent = `${completedQuestions} / ${totalQuestions}`;
             progressBarFill.style.width = `${progressPercentage}%`;
@@ -443,7 +494,7 @@
         function checkAnswer(button) {
             Tone.start().catch(e => console.warn("Audio context likely already started or failed:", e));
 
-            if (isWaitingToProceed) return; // Prevent multiple clicks
+            if (isWaitingToProceed) return;
 
             console.log(`Checking answer for question index ${currentQuestionIndex}...`);
 
@@ -454,7 +505,7 @@
             choiceButtons.forEach(btn => btn.disabled = true);
 
             if (selectedAnswer === correctAnswer) {
-                if (!isRedoing) score++; // Only increment score if not redoing incorrects
+                if (!isRedoing) score++;
                 feedbackText.textContent = 'Correct!';
                 feedbackText.className = 'mt-2 text-lg font-semibold text-emerald-600';
                 button.className = 'choice-button bg-emerald-500 text-white text-lg md:text-xl';
@@ -474,26 +525,23 @@
                      }
                 });
                  incorrectSound.triggerAttackRelease("C3", "8n");
-                 incorrectAnswers.push({ // Always track incorrect answers, even during redo
+                 incorrectAnswers.push({
                     question: `${questionData.num1} × ${questionData.num2}`,
                     correctAnswer: correctAnswer,
                     userAnswer: selectedAnswer
                  });
             }
 
-            // Wait before proceeding
             isWaitingToProceed = true;
             flashcard.classList.add('clickable-card');
             flashcard.style.cursor = 'pointer';
             continueText.classList.remove('hidden');
             console.log("Waiting to proceed...");
 
-            // Set timeout for auto-proceed
             if (proceedTimeoutId) clearTimeout(proceedTimeoutId);
             proceedTimeoutId = setTimeout(proceedToNext, AUTO_PROCEED_DELAY);
             console.log(`Auto-proceed timeout set for ${AUTO_PROCEED_DELAY}ms.`);
 
-            // Increment index AFTER processing the answer, but before displaying next
             currentQuestionIndex++;
         }
 
@@ -510,7 +558,7 @@
              continueText.classList.add('hidden');
              flashcard.classList.remove('shake', 'flash-red');
 
-             displayQuestion(); // Will either show next question or trigger showResults
+             displayQuestion();
         }
 
 
@@ -519,13 +567,12 @@
             endTime = new Date();
             const timeDiff = Math.round((endTime - startTime) / 1000);
             const totalQuestions = currentSet.length;
-            // Calculate score based on the mode (initial run vs redo)
             const currentScore = isRedoing ? (totalQuestions - incorrectAnswers.length) : score;
             const percentage = totalQuestions > 0 ? Math.round((currentScore / totalQuestions) * 100) : 0;
 
             resultsHeadingEl.textContent = isRedoing ? 'Review Complete!' : `Set ${selectedSetNumber} Complete!`;
             scoreDisplayEl.textContent = `${currentScore} / ${totalQuestions}`;
-            percentageEl.textContent = `${percentage}%`;
+            percentageEl.textContent = `${percentage}`;
             timeTakenEl.textContent = `${timeDiff} seconds`;
 
             if (percentage === 100) {
@@ -535,7 +582,7 @@
                  encouragementTextEl.textContent = isRedoing ? "Good review! Keep practicing!" : "Great effort! Keep practicing to improve!";
                  encouragementTextEl.className = 'text-lg text-sky-700 font-semibold mb-6';
             } else {
-                 encouragementTextEl.textContent = isRedoing ? "Keep reviewing these facts!" : "Keep going! Practice makes perfect!";
+                 encouragementTextEl.textContent = isRedoing ? "Keep reviewing these facts!" : "Practice makes perfect!";
                  encouragementTextEl.className = 'text-lg text-orange-700 font-semibold mb-6';
             }
 
@@ -545,38 +592,48 @@
             // --- Rocket Animation ---
             const trackWidth = raceTrackContainer.offsetWidth;
             const effectiveTrackWidth = trackWidth - 24; // Adjust based on flag emoji size
-            let currentAnimatedPercentage = 0;
             const animationDuration = 1500;
             const animationStartTime = performance.now();
+
+            // Reset rocket and fill position/width to 0 before animation
+            rocketEl.style.left = '0px';
+            // Removed the line setting racePercentageTextEl.style.left = '0px';
+            // Removed the line setting racePercentageTextEl.textContent = '0';
+            raceTrackFillEl.style.width = '0px';
+
 
             function animateRocket(currentTime) {
                 const elapsedTime = currentTime - animationStartTime;
                 const progress = Math.min(elapsedTime / animationDuration, 1);
                 const animatedPercentage = Math.round(progress * percentage);
-                const rocketPosition = Math.max(0, (animatedPercentage / 100) * effectiveTrackWidth);
+                const position = Math.max(0, (animatedPercentage / 100) * effectiveTrackWidth);
 
-                rocketEl.style.left = `${rocketPosition}px`;
-                racePercentageTextEl.style.left = `${rocketPosition}px`;
-                racePercentageTextEl.textContent = `${animatedPercentage}%`; // Add % sign
+                rocketEl.style.left = `${position}px`;
+                // Removed the line setting racePercentageTextEl.style.left
+                // Removed the line setting racePercentageTextEl.textContent
+
+                raceTrackFillEl.style.width = `${position}px`;
+
 
                 if (progress < 1) {
                     requestAnimationFrame(animateRocket);
                 } else {
-                     const finalRocketPosition = Math.max(0, (percentage / 100) * effectiveTrackWidth);
-                     rocketEl.style.left = `${finalRocketPosition}px`;
-                     racePercentageTextEl.style.left = `${finalRocketPosition}px`;
-                     racePercentageTextEl.textContent = `${percentage}%`; // Ensure final % is shown
+                     const finalPosition = Math.max(0, (percentage / 100) * effectiveTrackWidth);
+                     rocketEl.style.left = `${finalPosition}px`;
+                     // Removed the line setting racePercentageTextEl.style.left
+                     // Removed the line setting racePercentageTextEl.textContent
+                     raceTrackFillEl.style.width = `${finalPosition}px`;
+
+                     console.log(`Rocket animation finished at ${percentage}%. Final position: ${finalPosition}px. Final fill width: ${finalPosition}px`);
                 }
             }
-             rocketEl.style.left = '0px';
-             racePercentageTextEl.style.left = '0px';
-             racePercentageTextEl.textContent = '0%';
+
             requestAnimationFrame(animateRocket);
-             console.log("Rocket animation started.");
+             console.log("Rocket and progress bar animation started.");
 
             // --- Incorrect Answers List ---
             incorrectList.innerHTML = '';
-            const finalIncorrect = incorrectAnswers; // Use the list from the current round (initial or redo)
+            const finalIncorrect = incorrectAnswers;
             if (finalIncorrect.length > 0) {
                 incorrectListContainer.classList.remove('hidden');
                 noIncorrectText.classList.add('hidden');
@@ -585,11 +642,10 @@
                     listItem.textContent = `${item.question} = ${item.correctAnswer} (You answered: ${item.userAnswer})`;
                     incorrectList.appendChild(listItem);
                 });
-                 // Only show the "Redo Incorrect" button if it was the initial run AND there were errors
                  if (!isRedoing) {
                     redoIncorrectButton.classList.remove('hidden');
                  } else {
-                     redoIncorrectButton.classList.add('hidden'); // Hide if we just finished a redo
+                     redoIncorrectButton.classList.add('hidden');
                  }
 
             } else {
@@ -599,7 +655,6 @@
             }
 
              // --- Prepare and Send Webhook Data ---
-             // Get additional device/user info
              const userOS = navigator.platform || 'N/A';
              const localTime = new Date().toString();
              let userTimezone = 'N/A';
@@ -610,29 +665,28 @@
              }
 
             sendResultsToWebhook({
+                name: userName,
                 set: selectedSetNumber,
-                score: currentScore, // Send the score relevant to the current round
+                score: currentScore,
                 totalQuestions: totalQuestions,
                 percentage: percentage,
                 timeTaken: timeDiff,
-                incorrectAnswers: finalIncorrect, // Send the incorrect answers from this round
+                incorrectAnswers: finalIncorrect,
                 isRedoing: isRedoing,
-                // --- Added Fields ---
                 os: userOS,
                 deviceTime: localTime,
                 timezone: userTimezone
             });
 
-            // If we just finished a redo, reset the incorrectAnswers list for the next *initial* run
             if (isRedoing) {
-                incorrectAnswers = []; // Clear list after redoing
-                isRedoing = false; // Reset the redo flag
+                incorrectAnswers = [];
+                isRedoing = false;
             }
         }
 
         function redoIncorrect() {
             console.log("Redoing incorrect answers.");
-            const questionsToRedo = [...incorrectAnswers]; // Use the incorrect answers from the *last completed initial run*
+            const questionsToRedo = [...incorrectAnswers];
 
             if (questionsToRedo.length === 0) {
                 alert("No incorrect answers to redo!");
@@ -641,22 +695,20 @@
 
             currentSet = questionsToRedo.map(item => {
                 const originalQuestion = allQuestions.find(q => `${q.num1} × ${q.num2}` === item.question);
-                 // Fallback if original question isn't found (shouldn't happen with current logic)
                  if (!originalQuestion) {
                     console.error("Could not find original question data for:", item.question);
-                    // Attempt to parse from the string if possible
                     const parts = item.question.split(' × ');
                     if (parts.length === 2) {
                         return { num1: parseInt(parts[0]), num2: parseInt(parts[1]), answer: item.correctAnswer };
                     }
-                    return null; // Skip this question if parsing fails
+                    return null;
                  }
                  return {
                     num1: originalQuestion.num1,
                     num2: originalQuestion.num2,
                     answer: item.correctAnswer
                  };
-            }).filter(q => q !== null); // Filter out any potential nulls
+            }).filter(q => q !== null);
 
             if (currentSet.length === 0) {
                 alert("Error preparing questions for redo.");
@@ -666,13 +718,12 @@
             shuffleArray(currentSet);
 
             currentQuestionIndex = 0;
-            // Don't reset score here - score for redo is calculated in showResults
-            incorrectAnswers = []; // Clear the list specifically for the *redo round*
-            isRedoing = true; // Set flag
+            incorrectAnswers = [];
+            isRedoing = true;
 
             resultsScreen.classList.add('hidden');
             flashcardScreen.classList.remove('hidden');
-            startTime = new Date(); // Reset timer for the redo round
+            startTime = new Date();
             console.log(`Starting redo round with ${currentSet.length} questions.`);
             displayQuestion();
         }
@@ -685,20 +736,21 @@
                 proceedTimeoutId = null;
             }
             isWaitingToProceed = false;
-            isRedoing = false; // Ensure redo flag is reset when going back to selection
-            incorrectAnswers = []; // Clear any lingering incorrect answers
+            isRedoing = false;
+            incorrectAnswers = [];
 
+            nameModal.style.display = 'none';
             flashcardScreen.classList.add('hidden');
             resultsScreen.classList.add('hidden');
             setSelectionScreen.classList.remove('hidden');
 
             progressText.textContent = `0 / ${QUESTIONS_PER_SET}`;
             progressBarFill.style.width = '0%';
-             // Ensure webhook settings button is present (it might be removed if logic changes)
+
              if (!document.getElementById('webhookSettingsButton')) {
                  addWebhookSettingsButton();
              }
-            console.log("Resetting progress display.");
+            console.log("Resetting progress display and showing set selection.");
         }
 
         function sendResultsToWebhook(resultsData) {
@@ -709,7 +761,6 @@
             }
 
             console.log("Attempting to send results to webhook:", WEBHOOK_URL);
-            // Log the actual data being sent
             console.log("Webhook Payload:", resultsData);
 
 
@@ -718,65 +769,56 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                 // Use keepalive: true if you want to increase the chance of the request completing
-                 // even if the user navigates away immediately after results are shown.
-                 // keepalive: true,
                 body: JSON.stringify(resultsData),
             })
             .then(response => {
                 if (!response.ok) {
-                    // Log more details on failure
                      return response.text().then(text => {
                          console.error(`Webhook response not OK: ${response.status} ${response.statusText}`, `Response body: ${text}`);
                          throw new Error(`Webhook failed with status ${response.status}`);
                      });
                 } else {
                     console.log('Results successfully sent to webhook.');
-                    return response.json(); // Or response.text() if it doesn't return JSON
+                    return response.json().catch(() => response.text());
                 }
             })
             .then(data => {
-                // Optional: Log success response data if any
-                 // console.log("Webhook success response:", data);
+                 console.log("Webhook success response:", data);
              })
             .catch((error) => {
                 console.error('Error sending results to webhook:', error);
-                // Consider adding user feedback here if sending fails, e.g., a small message
             });
         }
 
         function openWebhookModal() {
-            webhookUrlInput.value = WEBHOOK_URL;
+            webhookUrlInput.value = WEBHOOK_URL === DEFAULT_WEBHOOK_URL && !localStorage.getItem(WEBHOOK_URL_STORAGE_KEY) ? '' : WEBHOOK_URL;
             webhookModal.style.display = 'flex';
         }
 
-        function closeModal() {
+        function closeWebhookModal() {
             webhookModal.style.display = 'none';
         }
 
         function saveWebhookUrl() {
             const url = webhookUrlInput.value.trim();
-            // Basic URL validation (optional but recommended)
             try {
-                new URL(url); // Check if it's a valid URL structure
-                WEBHOOK_URL = url;
-                localStorage.setItem('webhookUrl', url);
-                console.log("Webhook URL saved:", WEBHOOK_URL);
-                closeModal();
+                if (url) {
+                     new URL(url);
+                     WEBHOOK_URL = url;
+                     localStorage.setItem(WEBHOOK_URL_STORAGE_KEY, url);
+                     console.log("Webhook URL saved:", WEBHOOK_URL);
+                } else {
+                    WEBHOOK_URL = DEFAULT_WEBHOOK_URL;
+                    localStorage.removeItem(WEBHOOK_URL_STORAGE_KEY);
+                    console.log("Webhook URL cleared. Using default:", WEBHOOK_URL);
+                }
+                closeWebhookModal();
             } catch (_) {
-                // More specific check for Make/Integromat URLs
-                 if (url === '' || url === DEFAULT_WEBHOOK_URL) {
-                     // Allow clearing or resetting to default
-                     WEBHOOK_URL = DEFAULT_WEBHOOK_URL;
-                     localStorage.removeItem('webhookUrl');
-                     console.log("Webhook URL reset to default:", WEBHOOK_URL);
-                     closeModal();
-                 } else if (url.startsWith('https://hook.') && (url.includes('.make.com/') || url.includes('.integromat.com/'))) {
-                    // Assume valid Make/Integromat URL even if new URL() fails on some complex paths
+                 if (url.startsWith('https://hook.') && (url.includes('.make.com/') || url.includes('.integromat.com/'))) {
                     WEBHOOK_URL = url;
-                    localStorage.setItem('webhookUrl', url);
+                    localStorage.setItem(WEBHOOK_URL_STORAGE_KEY, url);
                     console.log("Webhook URL saved (Make/Integromat format):", WEBHOOK_URL);
-                    closeModal();
+                    closeWebhookModal();
                  }
                  else {
                     alert("Invalid URL format. Please enter a valid webhook URL.");
@@ -784,22 +826,19 @@
             }
         }
 
-        // Function to add the button dynamically
         function addWebhookSettingsButton() {
             const existingButton = document.getElementById('webhookSettingsButton');
-             if (!existingButton) { // Only add if it doesn't exist
+             if (!existingButton) {
                 const settingsButton = document.createElement('button');
                 settingsButton.textContent = 'Webhook Settings';
-                settingsButton.id = 'webhookSettingsButton'; // Add an ID for easier checking
+                settingsButton.id = 'webhookSettingsButton';
                 settingsButton.className = 'action-button mt-6 bg-slate-400 hover:bg-slate-500 text-white w-full text-sm py-3 px-6';
                 settingsButton.onclick = openWebhookModal;
-                // Append after the last set button
                 const setButtonsContainer = setSelectionScreen.querySelector('.grid');
                 if (setButtonsContainer) {
-                     // Insert after the grid container, not inside it, for better layout
                      setButtonsContainer.parentNode.insertBefore(settingsButton, setButtonsContainer.nextSibling);
                 } else {
-                    setSelectionScreen.appendChild(settingsButton); // Fallback append
+                    setSelectionScreen.appendChild(settingsButton);
                 }
 
                 console.log("Webhook settings button added.");
@@ -807,10 +846,17 @@
         }
 
          document.addEventListener('DOMContentLoaded', () => {
-            // Add the settings button when the DOM is ready
             addWebhookSettingsButton();
-            // Initial creation of question sets
             createQuestionSets();
+
+            if (userName) {
+                console.log("User name found in local storage:", userName);
+                 showSetSelection();
+            } else {
+                console.log("No user name found. Showing name input modal.");
+                nameModal.style.display = 'flex';
+                userNameInput.focus();
+            }
          });
 
     </script>
